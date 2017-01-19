@@ -1,0 +1,6 @@
+[package]
+name = "rustrender"
+version = "0.1.0"
+authors = ["Andrew Mullins <andrew.mullins@puppet.com>"]
+
+[dependencies]
