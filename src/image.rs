@@ -15,8 +15,8 @@ pub const WHITE: Color = Color(255, 255, 255);
 pub const RED: Color = Color(0, 0, 255);
 
 pub struct Image {
-    width: i32,
-    height: i32,
+    pub width: i32,
+    pub height: i32,
     // TODO: Shouldn't this be an array?
     data: Vec<Color>,
 }
@@ -142,12 +142,8 @@ pub fn line(x0: i32, y0: i32, x1: i32, y1: i32, image: &mut Image, color: Color)
             true => {
                 error -= dx * 2.0;
                 match y1 > y0 {
-                    true => {
-                        y + 1.0
-                    },
-                    false => {
-                        y - 1.0
-                    }
+                    true => { y + 1.0 },
+                    false => { y - 1.0 }
                 }
             },
             false => { y }
@@ -155,4 +151,12 @@ pub fn line(x0: i32, y0: i32, x1: i32, y1: i32, image: &mut Image, color: Color)
 
         x = x + 1.0;
     }
+}
+
+// TODO: Should create structs for 2 and 3d vectors
+// TODO: Are we using references and mutability in a consistent way?
+pub fn triangle(t0: Vec<i32>, t1: Vec<i32>, t2: Vec<i32>, mut image: Image, color: Color) {
+    line(t0[0], t0[1], t1[0], t1[1], &mut image, color);
+    line(t1[0], t1[1], t2[0], t2[1], &mut image, color);
+    line(t2[0], t2[1], t0[0], t0[1], &mut image, color);
 }

@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::error::Error;
 use std::io::{BufReader, BufRead};
+use image::*;
 
 pub struct Model {
     // TODO: Not sure if these should be public
@@ -53,6 +54,22 @@ impl Model {
         Model {
             verts: verts,
             faces: faces,
+        }
+    }
+
+    pub fn draw(self, mut image: &mut Image) {
+        // Iterate over the faces in the model and draw the triangles
+        for face in self.faces {
+            for idx in 0..3 {
+                let ref v0 = self.verts[face[idx]];
+                let ref v1 = self.verts[face[(idx + 1) % 3]];
+
+                let x0 = ((v0[0] + 1.0) * (image.width as f64) / 2.0) as i32;
+                let y0 = ((v0[1] + 1.0) * (image.height as f64) / 2.0) as i32;
+                let x1 = ((v1[0] + 1.0) * (image.width as f64) / 2.0) as i32;
+                let y1 = ((v1[1] + 1.0) * (image.height as f64) / 2.0) as i32;
+                line(x0, y0, x1, y1, &mut image, WHITE);
+            }
         }
     }
 }
