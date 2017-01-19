@@ -6,10 +6,12 @@ use std::slice;
 
 // TODO: Probably some stuff with bits per pixel, I guess 24 for now (BGR, no alpha)
 // Somewhat based on https://gist.github.com/jonvaldes/607fbc380f816d205afb
-#[derive(Clone)]
+// TODO: Are we writing in the wrong endian order? Maybe use byteorder crate
+#[derive(Clone, Copy)]
 struct Color(u8, u8, u8);
 
 const BLACK: Color = Color(0, 0, 0);
+const WHITE: Color = Color(255, 255, 255);
 const RED: Color = Color(0, 0, 255);
 
 struct Image {
@@ -91,8 +93,24 @@ impl Image {
     }
 }
 
+fn line(x0: i32, y0: i32, x1: i32, y1: i32, image: &mut Image, color: Color) {
+    let range = 0..100;
+    for i in range {
+        let t = (i as f64) * 0.01;
+        let x0 = x0 as f64;
+        let y0 = y0 as f64;
+        let x1 = x1 as f64;
+        let y1 = y1 as f64;
+
+        let x = x0 * (1.0 - t) + x1 * t;
+        let y = y0 * (1.0 - t) + y1 * t;
+        image.set_pixel(x as i32, y as i32, color);
+    }
+}
+
 fn main() {
     let mut image = Image::new(100, 100);
     image.set_pixel(52, 41, RED);
+    line(13, 20, 80, 40, &mut image, WHITE);
     image.write_tga_file("output.tga");
 }
