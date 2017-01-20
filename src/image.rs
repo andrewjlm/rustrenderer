@@ -183,7 +183,7 @@ pub fn filled_triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &
         // We already know the y - to find x, we add the ratio of
         // height differences times the width distance (intercept theorem)
         let height_ratio = ((v[1].y - v[0].y) as f64) / ((v[2].y - v[0].y) as f64);
-        let width = (v[2].x - v[1].x) as f64;
+        let width = (v[2].x - v[0].x) as f64;
         let new_x = ((v[0].x as f64) + height_ratio * width) as i32;
         let new_v = Vec2{x: new_x, y: v[1].y};
         flat_top_triangle(vec![v[0], v[1], new_v], &mut image, color);
