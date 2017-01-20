@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::Write;
 use std::mem;
 use std::slice;
+use geo::Vec2;
 
 // TODO: Probably some stuff with bits per pixel, I guess 24 for now (BGR, no alpha)
 // Somewhat based on https://gist.github.com/jonvaldes/607fbc380f816d205afb
@@ -13,11 +14,12 @@ pub struct Color(pub u8, pub u8, pub u8);
 pub const BLACK: Color = Color(0, 0, 0);
 pub const WHITE: Color = Color(255, 255, 255);
 pub const RED: Color = Color(0, 0, 255);
+pub const GREEN: Color = Color(0, 255, 0);
+pub const BLUE: Color = Color(255, 0, 0);
 
 pub struct Image {
     pub width: i32,
     pub height: i32,
-    // TODO: Shouldn't this be an array?
     data: Vec<Color>,
 }
 
@@ -95,12 +97,12 @@ impl Image {
     }
 }
 
-pub fn line(x0: i32, y0: i32, x1: i32, y1: i32, image: &mut Image, color: Color) {
+pub fn line(point1: Vec2<i32>, point2: Vec2<i32>, image: &mut Image, color: Color) {
     // We need to work in floats, then output in i32
-    let x0 = x0 as f64;
-    let x1 = x1 as f64;
-    let y0 = y0 as f64;
-    let y1 = y1 as f64;
+    let x0 = point1.x as f64;
+    let x1 = point2.x as f64;
+    let y0 = point1.y as f64;
+    let y1 = point2.y as f64;
 
     // If the line is steep, we transpose the coordinates
     let steep = (x0 -x1).abs() < (y0 - y1).abs();
@@ -155,8 +157,69 @@ pub fn line(x0: i32, y0: i32, x1: i32, y1: i32, image: &mut Image, color: Color)
 
 // TODO: Should create structs for 2 and 3d vectors
 // TODO: Are we using references and mutability in a consistent way?
-pub fn triangle(t0: Vec<i32>, t1: Vec<i32>, t2: Vec<i32>, mut image: Image, color: Color) {
-    line(t0[0], t0[1], t1[0], t1[1], &mut image, color);
-    line(t1[0], t1[1], t2[0], t2[1], &mut image, color);
-    line(t2[0], t2[1], t0[0], t0[1], &mut image, color);
+pub fn triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Image, color: Color) {
+    line(t0, t1, &mut image, color);
+    line(t1, t2, &mut image, color);
+    line(t2, t0, &mut image, color);
+}
+
+pub fn filled_triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Image, color: Color) {
+    // TODO: Better way to convert everything to f64
+    let mut v = vec![t0, t1, t2];
+    v.sort_by(|a, b| a.y.cmp(&b.y));
+    line(v[0], v[1], &mut image, GREEN);
+    line(v[1], v[2], &mut image, GREEN);
+    line(v[2], v[0], &mut image, RED);
+
+    // Check for flat-top/bottom triangle, which are easy
+    if v[1].y == v[2].y {
+        println!("flat top");
+        flat_top_triangle(v, &mut image, color);
+    } else if v[0].y == v[1].y {
+        println!("flat bottom");
+        flat_bottom_triangle(v, &mut image, color);
+    } else {
+        // Find the middle of the triangle and divide/conquer
+        // We already know the y - to find x, we add the ratio of
+        // height differences times the width distance (intercept theorem)
+        let height_ratio = ((v[1].y - v[0].y) as f64) / ((v[2].y - v[0].y) as f64);
+        let width = (v[2].x - v[1].x) as f64;
+        let new_x = ((v[0].x as f64) + height_ratio * width) as i32;
+        let new_v = Vec2{x: new_x, y: v[1].y};
+        flat_top_triangle(vec![v[0], v[1], new_v], &mut image, color);
+        flat_bottom_triangle(vec![v[1], new_v, v[2]], &mut image, color);
+    }
+}
+
+fn flat_top_triangle(v: Vec<Vec2<i32>>, mut image: &mut Image, color: Color) {
+    // Find the slope in each y direction
+    let slope1 = ((v[1].x - v[0].x) as f64) / ((v[1].y - v[0].y) as f64);
+    let slope2 = ((v[2].x - v[0].x) as f64) / ((v[2].y - v[0].y) as f64);
+
+    // Keep track of current X bounds
+    let mut x1 = v[0].x as f64;
+    let mut x2 = v[0].x as f64;
+
+    for y in v[0].y..v[1].y {
+        // Draw line across the triangle
+        line(Vec2{x: x1 as i32, y: y}, Vec2{x: x2 as i32, y: y}, &mut image, color);
+
+        x1 += slope1;
+        x2 += slope2;
+    }
+}
+
+fn flat_bottom_triangle(v: Vec<Vec2<i32>>, mut image: &mut Image, color: Color) {
+    let slope1 = ((v[2].x - v[0].x) as f64) / ((v[2].y - v[0].y) as f64);
+    let slope2 = ((v[2].x - v[1].x) as f64) / ((v[2].y - v[1].y) as f64);
+
+    let mut x1 = v[2].x as f64;
+    let mut x2 = v[2].x as f64;
+
+    for y in (v[1].y..v[2].y).rev() {
+        line(Vec2{x: x1 as i32, y: y}, Vec2{x: x2 as i32, y: y}, &mut image, color);
+
+        x1 -= slope1;
+        x2 -= slope2;
+    }
 }

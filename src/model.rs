@@ -1,7 +1,9 @@
 use std::fs::File;
 use std::error::Error;
 use std::io::{BufReader, BufRead};
+
 use image::*;
+use geo::Vec2;
 
 pub struct Model {
     // TODO: Not sure if these should be public
@@ -68,7 +70,7 @@ impl Model {
                 let y0 = ((v0[1] + 1.0) * (image.height as f64) / 2.0) as i32;
                 let x1 = ((v1[0] + 1.0) * (image.width as f64) / 2.0) as i32;
                 let y1 = ((v1[1] + 1.0) * (image.height as f64) / 2.0) as i32;
-                line(x0, y0, x1, y1, &mut image, WHITE);
+                line(Vec2{x: x0, y: y0}, Vec2{x: x1, y: y1}, &mut image, WHITE);
             }
         }
     }
