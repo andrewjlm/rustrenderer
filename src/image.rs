@@ -163,20 +163,56 @@ pub fn triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Ima
     line(t2, t0, &mut image, color);
 }
 
+pub fn bb_triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Image, color: Color) {
+    // TODO: Should return a tuple, maybe?
+    let bbox: Vec<Vec2<i32>> = find_bounding_box(t0, t1, t2);
+
+    // Iterate over pixels in bounding box
+    for x in bbox[0].x..bbox[3].x {
+        for y in bbox[0].y..bbox[2].y {
+            let p = Vec2{x: x, y: y};
+            let bc1 = barycentric(t0, t1, p);
+            let bc2 = barycentric(t1, t2, p);
+            let bc3 = barycentric(t2, t0, p);
+
+            // If any of the barycentric coordinates are negative, don't draw
+            if (bc1 >= 0 && bc2 >= 0 && bc3 >= 0) {
+                image.set_pixel(x, y, color);
+            }
+        }
+    }
+}
+
+fn find_bounding_box(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>) -> Vec<Vec2<i32>> {
+    // Find coordinates of the corners of the bounding box
+    let mut xs = vec![t0.x, t1.x, t2.x];
+    let mut ys = vec![t0.y, t1.y, t2.y];
+    xs.sort_by(|a, b| a.cmp(&b));
+    ys.sort_by(|a, b| a.cmp(&b));
+
+    let (min_x, max_x) = (xs[0], xs[2]);
+    let (min_y, max_y) = (ys[0], ys[2]);
+
+    vec![Vec2{x: min_x, y: min_y},
+         Vec2{x: min_x, y: max_y},
+         Vec2{x: max_x, y: max_y},
+         Vec2{x: max_x, y: min_y}]
+}
+
+fn barycentric(t0: Vec2<i32>, t1: Vec2<i32>, p: Vec2<i32>) -> i32 {
+    // Compute edge function
+    (p.x - t0.x) * (t1.y - t0.y) - (p.y - t0.y) * (t1.x - t0.x)
+}
+
 pub fn filled_triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Image, color: Color) {
     // TODO: Better way to convert everything to f64
     let mut v = vec![t0, t1, t2];
     v.sort_by(|a, b| a.y.cmp(&b.y));
-    line(v[0], v[1], &mut image, GREEN);
-    line(v[1], v[2], &mut image, GREEN);
-    line(v[2], v[0], &mut image, RED);
 
     // Check for flat-top/bottom triangle, which are easy
     if v[1].y == v[2].y {
-        println!("flat top");
         flat_top_triangle(v, &mut image, color);
     } else if v[0].y == v[1].y {
-        println!("flat bottom");
         flat_bottom_triangle(v, &mut image, color);
     } else {
         // Find the middle of the triangle and divide/conquer

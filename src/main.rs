@@ -21,8 +21,11 @@ fn main() {
     let t2: Vec<Vec2<i32>> = vec![Vec2{x: 180, y: 150},
                                   Vec2{x: 120, y: 160},
                                   Vec2{x: 130, y: 180}];
-    filled_triangle(t0[0], t0[1], t0[2], &mut image, RED);
-    filled_triangle(t1[0], t1[1], t1[2], &mut image, WHITE);
-    filled_triangle(t2[0], t2[1], t2[2], &mut image, GREEN);
+    // triangle(t0[0], t0[1], t0[2], &mut image, RED);
+    // triangle(t1[0], t1[1], t1[2], &mut image, WHITE);
+    // triangle(t2[0], t2[1], t2[2], &mut image, GREEN);
+    bb_triangle(t0[0], t0[1], t0[2], &mut image, RED);
+    bb_triangle(t1[0], t1[1], t1[2], &mut image, WHITE);
+    bb_triangle(t2[0], t2[1], t2[2], &mut image, GREEN);
     image.write_tga_file("output.tga");
 }
