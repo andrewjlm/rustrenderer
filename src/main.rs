@@ -12,7 +12,7 @@ fn main() {
     let mut image = Image::new(width, height);
     // TODO: Command line argument for the object file
     // let model = Model::new("obj/african_head.obj");
-    let t0: Vec<Vec2<i32>> = vec![Vec2{x: 10, y: 70},
+    let t0: Vec<Vec2<i32>> = vec![Vec2{x: -10, y: 70},
                                   Vec2{x: 50, y: 160},
                                   Vec2{x: 70, y: 80}];
     let t1: Vec<Vec2<i32>> = vec![Vec2{x: 180, y: 50},

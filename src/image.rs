@@ -4,6 +4,7 @@ use std::io::Write;
 use std::mem;
 use std::slice;
 use geo::Vec2;
+use std::cmp;
 
 // TODO: Probably some stuff with bits per pixel, I guess 24 for now (BGR, no alpha)
 // Somewhat based on https://gist.github.com/jonvaldes/607fbc380f816d205afb
@@ -166,6 +167,7 @@ pub fn triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Ima
 pub fn bb_triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Image, color: Color) {
     // TODO: Should return a tuple, maybe?
     let bbox: Vec<Vec2<i32>> = find_bounding_box(t0, t1, t2);
+    let bbox = clip_bounding_box(bbox, &image);
 
     // Iterate over pixels in bounding box
     for x in bbox[0].x..bbox[3].x {
@@ -176,7 +178,7 @@ pub fn bb_triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut 
             let bc3 = barycentric(t2, t0, p);
 
             // If any of the barycentric coordinates are negative, don't draw
-            if (bc1 >= 0 && bc2 >= 0 && bc3 >= 0) {
+            if bc1 >= 0 && bc2 >= 0 && bc3 >= 0 {
                 image.set_pixel(x, y, color);
             }
         }
@@ -197,6 +199,27 @@ fn find_bounding_box(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>) -> Vec<Vec2<i3
          Vec2{x: min_x, y: max_y},
          Vec2{x: max_x, y: max_y},
          Vec2{x: max_x, y: min_y}]
+}
+
+fn clip_bounding_box(bbox: Vec<Vec2<i32>>, image: &Image) -> Vec<Vec2<i32>> {
+    let mut result = Vec::new();
+
+    for i in bbox  {
+        result.push(Vec2{x: clip(i.x, 0, image.width),
+                         y: clip(i.y, 0, image.height)});
+    }
+
+    result
+}
+
+fn clip(x: i32, min: i32, max: i32) -> i32 {
+    if x < min {
+        min
+    } else if x > max {
+        max
+    } else {
+        x
+    }
 }
 
 fn barycentric(t0: Vec2<i32>, t1: Vec2<i32>, p: Vec2<i32>) -> i32 {
