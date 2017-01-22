@@ -8,7 +8,6 @@ use std::cmp;
 
 // TODO: Probably some stuff with bits per pixel, I guess 24 for now (BGR, no alpha)
 // Somewhat based on https://gist.github.com/jonvaldes/607fbc380f816d205afb
-// TODO: Are we writing in the wrong endian order? Maybe use byteorder crate
 #[derive(Clone, Copy)]
 pub struct Color(pub u8, pub u8, pub u8);
 
@@ -100,10 +99,12 @@ impl Image {
 
 pub fn line(point1: Vec2<i32>, point2: Vec2<i32>, image: &mut Image, color: Color) {
     // We need to work in floats, then output in i32
-    let x0 = point1.x as f64;
-    let x1 = point2.x as f64;
-    let y0 = point1.y as f64;
-    let y1 = point2.y as f64;
+    let p1 = point1.to_f64();
+    let p2 = point2.to_f64();
+    let x0 = p1.x;
+    let x1 = p2.x;
+    let y0 = p1.y;
+    let y1 = p1.y;
 
     // If the line is steep, we transpose the coordinates
     let steep = (x0 -x1).abs() < (y0 - y1).abs();
@@ -156,7 +157,6 @@ pub fn line(point1: Vec2<i32>, point2: Vec2<i32>, image: &mut Image, color: Colo
     }
 }
 
-// TODO: Should create structs for 2 and 3d vectors
 // TODO: Are we using references and mutability in a consistent way?
 pub fn triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Image, color: Color) {
     line(t0, t1, &mut image, color);
@@ -205,8 +205,9 @@ fn clip_bounding_box(bbox: Vec<Vec2<i32>>, image: &Image) -> Vec<Vec2<i32>> {
     let mut result = Vec::new();
 
     for i in bbox  {
-        result.push(Vec2{x: clip(i.x, 0, image.width),
-                         y: clip(i.y, 0, image.height)});
+        let clipped_bounds = Vec2{x: clip(i.x, 0, image.width),
+                                  y: clip(i.y, 0, image.height)};
+        result.push(clipped_bounds);
     }
 
     result
@@ -224,7 +225,7 @@ fn clip(x: i32, min: i32, max: i32) -> i32 {
 
 fn barycentric(t0: Vec2<i32>, t1: Vec2<i32>, p: Vec2<i32>) -> i32 {
     // Compute edge function
-    (p.x - t0.x) * (t1.y - t0.y) - (p.y - t0.y) * (t1.x - t0.x)
+    (t1.x - t0.x) * (p.y - t0.y) - (t1.y - t0.y) * (p.x - t0.x)
 }
 
 pub fn filled_triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Image, color: Color) {

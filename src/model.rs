@@ -3,7 +3,8 @@ use std::error::Error;
 use std::io::{BufReader, BufRead};
 
 use image::*;
-use geo::Vec2;
+use geo::{Vec2, Vec3, cross_product};
+use num::ToPrimitive;
 
 pub struct Model {
     // TODO: Not sure if these should be public
@@ -59,18 +60,35 @@ impl Model {
         }
     }
 
-    pub fn draw(self, mut image: &mut Image) {
+    pub fn draw(self, mut image: &mut Image, light_dir: Vec3<i32>) {
         // Iterate over the faces in the model and draw the triangles
         for face in self.faces {
-            for idx in 0..3 {
-                let ref v0 = self.verts[face[idx]];
-                let ref v1 = self.verts[face[(idx + 1) % 3]];
+            let mut tri = Vec::new();
+            let mut coords = Vec::new();
 
-                let x0 = ((v0[0] + 1.0) * (image.width as f64) / 2.0) as i32;
-                let y0 = ((v0[1] + 1.0) * (image.height as f64) / 2.0) as i32;
-                let x1 = ((v1[0] + 1.0) * (image.width as f64) / 2.0) as i32;
-                let y1 = ((v1[1] + 1.0) * (image.height as f64) / 2.0) as i32;
-                line(Vec2{x: x0, y: y0}, Vec2{x: x1, y: y1}, &mut image, WHITE);
+            let mut draw = false;
+
+            for idx in 0..3 {
+                let ref v = self.verts[face[idx]];
+                tri.push(Vec2{x: ((v[0] + 1.0) * (image.width as f64) / 2.0) as i32,
+                              y: ((v[1] + 1.0) * (image.height as f64) / 2.0) as i32});
+                coords.push(Vec3{x: v[0], y: v[1], z: v[2]});
+            }
+
+            // Calculate the surface normal of the triangle
+            let v = coords[1] - coords[0];
+            let w = coords[2] - coords[0];
+            let norm = cross_product(v, w);
+            let normalized = norm.normalize();
+
+            let intensity = normalized * light_dir.to_f64();
+
+            if intensity > 0.0 {
+                // TODO: Probably a cleaner way to do this
+                let shade = Color((intensity * 255.0).to_u8().unwrap(),
+                                  (intensity * 255.0).to_u8().unwrap(),
+                                  (intensity * 255.0).to_u8().unwrap());
+                bb_triangle(tri[0], tri[1], tri[2], &mut image, shade);
             }
         }
     }
