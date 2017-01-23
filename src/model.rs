@@ -70,8 +70,9 @@ impl Model {
 
             for idx in 0..3 {
                 let ref v = self.verts[face[idx]];
-                tri.push(Vec2{x: ((v[0] + 1.0) * (image.width as f64) / 2.0) as i32,
-                              y: ((v[1] + 1.0) * (image.height as f64) / 2.0) as i32});
+                tri.push(Vec3{x: ((v[0] + 1.0) * (image.width as f64) / 2.0) as i32,
+                              y: ((v[1] + 1.0) * (image.height as f64) / 2.0) as i32,
+                              z: v[2] as i32});
                 coords.push(Vec3{x: v[0], y: v[1], z: v[2]});
             }
 

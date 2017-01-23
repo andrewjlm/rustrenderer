@@ -3,8 +3,8 @@ use std::fs::File;
 use std::io::Write;
 use std::mem;
 use std::slice;
-use geo::Vec2;
-use std::cmp;
+use geo::{Vec2, Vec3};
+use std::f64;
 
 // TODO: Probably some stuff with bits per pixel, I guess 24 for now (BGR, no alpha)
 // Somewhat based on https://gist.github.com/jonvaldes/607fbc380f816d205afb
@@ -21,6 +21,7 @@ pub struct Image {
     pub width: i32,
     pub height: i32,
     data: Vec<Color>,
+    zbuffer: Vec<f64>,
 }
 
 // Given a reference to a T, return a reference to that slice
@@ -41,11 +42,14 @@ impl Image {
     pub fn new(width: i32, height: i32) -> Self {
         // Initialize with black background
         let v = vec![BLACK; (width * height) as usize];
+        // The z-buffer is the same size as the image and initially filled with -Inf (basically)
+        let z = vec![f64::MIN; (width * height) as usize];
 
         Image {
             width: width,
             height: height,
             data: v,
+            zbuffer: z,
         }
     }
 
@@ -54,6 +58,17 @@ impl Image {
             // The index in the vector is the width times y plus x
             self.data[((y * self.width) + x) as usize] = c;
         }
+    }
+
+    // TODO: Should the zbuffer be floats?
+    fn set_depth(self: &mut Image, x: i32, y: i32, d: f64) {
+        if !(x < 0 || y < 0 || x >= self.width || y >= self.width) {
+            self.zbuffer[((y * self.width) + x) as usize] = d;
+        }
+    }
+
+    fn get_depth(self: &Image, x: i32, y: i32) -> f64 {
+        self.zbuffer[((y * self.width) + x) as usize]
     }
 
     pub fn write_tga_file(self: &Image, filename: &str) -> io::Result<()> {
@@ -157,35 +172,41 @@ pub fn line(point1: Vec2<i32>, point2: Vec2<i32>, image: &mut Image, color: Colo
     }
 }
 
-// TODO: Are we using references and mutability in a consistent way?
-pub fn triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Image, color: Color) {
-    line(t0, t1, &mut image, color);
-    line(t1, t2, &mut image, color);
-    line(t2, t0, &mut image, color);
-}
-
-pub fn bb_triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Image, color: Color) {
+pub fn bb_triangle(t0: Vec3<i32>, t1: Vec3<i32>, t2: Vec3<i32>, mut image: &mut Image, color: Color) {
     // TODO: Should return a tuple, maybe?
     let bbox: Vec<Vec2<i32>> = find_bounding_box(t0, t1, t2);
     let bbox = clip_bounding_box(bbox, &image);
 
+    // Compute edge function for all 3 points - we'll use this to scale for zbuffer
+    let area = barycentric(t0, t1, t2);
+
     // Iterate over pixels in bounding box
     for x in bbox[0].x..bbox[3].x {
         for y in bbox[0].y..bbox[2].y {
-            let p = Vec2{x: x, y: y};
+            let p = Vec3{x: x, y: y, z: 0};
             let bc1 = barycentric(t0, t1, p);
             let bc2 = barycentric(t1, t2, p);
             let bc3 = barycentric(t2, t0, p);
 
             // If any of the barycentric coordinates are negative, don't draw
-            if bc1 >= 0 && bc2 >= 0 && bc3 >= 0 {
-                image.set_pixel(x, y, color);
+            if bc1 >= 0 && bc2 >= 0 && bc3 >= 0 && area != 0 {
+                // Scale the barycentric coordinates
+                let bc1 = bc1 / area;
+                let bc2 = bc2 / area;
+                let bc3 = bc3 / area;
+
+                // Compute the depth
+                let z = 1.0 / (((t0.z * bc1) + (t1.z * bc2) + (t2.z * bc3)) as f64);
+                if z > image.get_depth(x, y) {
+                    image.set_depth(x, y, z);
+                    image.set_pixel(x, y, color);
+                }
             }
         }
     }
 }
 
-fn find_bounding_box(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>) -> Vec<Vec2<i32>> {
+fn find_bounding_box(t0: Vec3<i32>, t1: Vec3<i32>, t2: Vec3<i32>) -> Vec<Vec2<i32>> {
     // Find coordinates of the corners of the bounding box
     let mut xs = vec![t0.x, t1.x, t2.x];
     let mut ys = vec![t0.y, t1.y, t2.y];
@@ -223,63 +244,7 @@ fn clip(x: i32, min: i32, max: i32) -> i32 {
     }
 }
 
-fn barycentric(t0: Vec2<i32>, t1: Vec2<i32>, p: Vec2<i32>) -> i32 {
+fn barycentric(t0: Vec3<i32>, t1: Vec3<i32>, p: Vec3<i32>) -> i32 {
     // Compute edge function
     (t1.x - t0.x) * (p.y - t0.y) - (t1.y - t0.y) * (p.x - t0.x)
-}
-
-pub fn filled_triangle(t0: Vec2<i32>, t1: Vec2<i32>, t2: Vec2<i32>, mut image: &mut Image, color: Color) {
-    // TODO: Better way to convert everything to f64
-    let mut v = vec![t0, t1, t2];
-    v.sort_by(|a, b| a.y.cmp(&b.y));
-
-    // Check for flat-top/bottom triangle, which are easy
-    if v[1].y == v[2].y {
-        flat_top_triangle(v, &mut image, color);
-    } else if v[0].y == v[1].y {
-        flat_bottom_triangle(v, &mut image, color);
-    } else {
-        // Find the middle of the triangle and divide/conquer
-        // We already know the y - to find x, we add the ratio of
-        // height differences times the width distance (intercept theorem)
-        let height_ratio = ((v[1].y - v[0].y) as f64) / ((v[2].y - v[0].y) as f64);
-        let width = (v[2].x - v[0].x) as f64;
-        let new_x = ((v[0].x as f64) + height_ratio * width) as i32;
-        let new_v = Vec2{x: new_x, y: v[1].y};
-        flat_top_triangle(vec![v[0], v[1], new_v], &mut image, color);
-        flat_bottom_triangle(vec![v[1], new_v, v[2]], &mut image, color);
-    }
-}
-
-fn flat_top_triangle(v: Vec<Vec2<i32>>, mut image: &mut Image, color: Color) {
-    // Find the slope in each y direction
-    let slope1 = ((v[1].x - v[0].x) as f64) / ((v[1].y - v[0].y) as f64);
-    let slope2 = ((v[2].x - v[0].x) as f64) / ((v[2].y - v[0].y) as f64);
-
-    // Keep track of current X bounds
-    let mut x1 = v[0].x as f64;
-    let mut x2 = v[0].x as f64;
-
-    for y in v[0].y..v[1].y {
-        // Draw line across the triangle
-        line(Vec2{x: x1 as i32, y: y}, Vec2{x: x2 as i32, y: y}, &mut image, color);
-
-        x1 += slope1;
-        x2 += slope2;
-    }
-}
-
-fn flat_bottom_triangle(v: Vec<Vec2<i32>>, mut image: &mut Image, color: Color) {
-    let slope1 = ((v[2].x - v[0].x) as f64) / ((v[2].y - v[0].y) as f64);
-    let slope2 = ((v[2].x - v[1].x) as f64) / ((v[2].y - v[1].y) as f64);
-
-    let mut x1 = v[2].x as f64;
-    let mut x2 = v[2].x as f64;
-
-    for y in (v[1].y..v[2].y).rev() {
-        line(Vec2{x: x1 as i32, y: y}, Vec2{x: x2 as i32, y: y}, &mut image, color);
-
-        x1 -= slope1;
-        x2 -= slope2;
-    }
 }
