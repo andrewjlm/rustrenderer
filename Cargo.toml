@@ -5,3 +5,4 @@ authors = ["Andrew Mullins <andrew.mullins@puppet.com>"]
 
 [dependencies]
 num = "0.1.36"
+byteorder = "1"

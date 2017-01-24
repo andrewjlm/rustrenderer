@@ -10,6 +10,8 @@ pub struct Model {
     // TODO: Not sure if these should be public
     pub verts: Vec<Vec<f64>>,
     pub faces: Vec<Vec<usize>>,
+    face_text: Vec<Vec<usize>>,
+    pub text_coords: Vec<Vec<f64>>
 }
 
 // TODO: Implement function to draw the whole model
@@ -17,6 +19,8 @@ impl Model {
     pub fn new(filename: &str) -> Self {
         let mut verts = Vec::new();
         let mut faces = Vec::new();
+        let mut face_text = Vec::new();
+        let mut text_coords = Vec::new();
 
         let mut file = match File::open(&filename) {
             Err(why) => panic!("Couldn't open {}: {}", filename,
@@ -39,11 +43,26 @@ impl Model {
                     },
                     Some("f") => {
                         // We only care about the first number after the line (for now?)
-                        let face = split_line.filter_map(|s| s.split('/').next().unwrap()
-                                                         .parse::<usize>().ok()).collect::<Vec<_>>();
+                        let mut face = Vec::new();
+                        let mut texture = Vec::new();
+
+                        for block in split_line {
+                            let content = block.split('/').map(|s| s.parse::<usize>().ok()).collect::<Vec<_>>();
+                            face.push(content[0].unwrap());
+                            texture.push(content[1].unwrap());
+                        }
+
                         // Subtract one because they don't zero index :(
                         let face = face.iter().map(|f| (f - 1)).collect();
+                        let texture = texture.iter().map(|f| (f - 1)).collect();
+
                         faces.push(face);
+                        face_text.push(texture);
+                    },
+                    Some("vt") => {
+                        // Parse texture coordinates
+                        let coords = split_line.filter_map(|s| s.parse::<f64>().ok()).collect::<Vec<_>>();
+                        text_coords.push(coords);
                     }
                     _ => {
 
@@ -57,6 +76,8 @@ impl Model {
         Model {
             verts: verts,
             faces: faces,
+            face_text: face_text,
+            text_coords: text_coords,
         }
     }
 

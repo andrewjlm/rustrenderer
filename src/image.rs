@@ -8,7 +8,7 @@ use std::f64;
 
 // TODO: Probably some stuff with bits per pixel, I guess 24 for now (BGR, no alpha)
 // Somewhat based on https://gist.github.com/jonvaldes/607fbc380f816d205afb
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Color(pub u8, pub u8, pub u8);
 
 pub const BLACK: Color = Color(0, 0, 0);
@@ -49,6 +49,7 @@ impl Image {
             width: width,
             height: height,
             data: v,
+            // TODO: The zbuffer should probably be in some other object - a scene?
             zbuffer: z,
         }
     }
@@ -58,6 +59,10 @@ impl Image {
             // The index in the vector is the width times y plus x
             self.data[((y * self.width) + x) as usize] = c;
         }
+    }
+
+    pub fn set_data_buffer(self: &mut Image, data: Vec<Color>) {
+        self.data = data;
     }
 
     // TODO: Should the zbuffer be floats?
@@ -73,6 +78,7 @@ impl Image {
 
     pub fn write_tga_file(self: &Image, filename: &str) -> io::Result<()> {
         // Do what C does, also strip any padding and align the type to a byte
+        // TODO: Move this to TGA
         #[repr(C, packed)]
         #[derive(Default)]
         struct Header {
