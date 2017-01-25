@@ -97,7 +97,6 @@ impl TGAHeader {
 pub fn read_tga_file(filename: &str) -> Result<Image, Error> {
     let mut f = try!(File::open(filename));
     let header = TGAHeader::from_reader(&mut f).unwrap();
-    println!("{:?}", header);
     // TODO: Don't assume there is no color map, or all the other assumptions I'm making
     let width = header.width as usize;
     let height = header.height as usize;

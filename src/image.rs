@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::Write;
 use std::mem;
 use std::slice;
-use geo::{Vec2, Vec3};
+use geo::{Vec2};
 use std::f64;
 
 // TODO: Probably some stuff with bits per pixel, I guess 24 for now (BGR, no alpha)
@@ -54,7 +54,7 @@ impl Image {
         }
     }
 
-    fn set_pixel(self: &mut Image, x: i32, y: i32, c: Color) {
+    pub fn set_pixel(self: &mut Image, x: i32, y: i32, c: Color) {
         if !(x < 0 || y < 0 || x >= self.width || y >= self.width) {
             // The index in the vector is the width times y plus x
             self.data[((y * self.width) + x) as usize] = c;
@@ -66,13 +66,13 @@ impl Image {
     }
 
     // TODO: Should the zbuffer be floats?
-    fn set_depth(self: &mut Image, x: i32, y: i32, d: f64) {
+    pub fn set_depth(self: &mut Image, x: i32, y: i32, d: f64) {
         if !(x < 0 || y < 0 || x >= self.width || y >= self.width) {
             self.zbuffer[((y * self.width) + x) as usize] = d;
         }
     }
 
-    fn get_depth(self: &Image, x: i32, y: i32) -> f64 {
+    pub fn get_depth(self: &Image, x: i32, y: i32) -> f64 {
         self.zbuffer[((y * self.width) + x) as usize]
     }
 
@@ -125,7 +125,7 @@ pub fn line(point1: Vec2<i32>, point2: Vec2<i32>, image: &mut Image, color: Colo
     let x0 = p1.x;
     let x1 = p2.x;
     let y0 = p1.y;
-    let y1 = p1.y;
+    let y1 = p2.y;
 
     // If the line is steep, we transpose the coordinates
     let steep = (x0 -x1).abs() < (y0 - y1).abs();
@@ -176,81 +176,4 @@ pub fn line(point1: Vec2<i32>, point2: Vec2<i32>, image: &mut Image, color: Colo
 
         x = x + 1.0;
     }
-}
-
-pub fn bb_triangle(t0: Vec3<i32>, t1: Vec3<i32>, t2: Vec3<i32>, mut image: &mut Image, color: Color) {
-    // TODO: Should return a tuple, maybe?
-    let bbox: Vec<Vec2<i32>> = find_bounding_box(t0, t1, t2);
-    let bbox = clip_bounding_box(bbox, &image);
-
-    // Compute edge function for all 3 points - we'll use this to scale for zbuffer
-    let area = barycentric(t0, t1, t2);
-
-    // Iterate over pixels in bounding box
-    for x in bbox[0].x..bbox[3].x {
-        for y in bbox[0].y..bbox[2].y {
-            let p = Vec3{x: x, y: y, z: 0};
-            let bc1 = barycentric(t0, t1, p);
-            let bc2 = barycentric(t1, t2, p);
-            let bc3 = barycentric(t2, t0, p);
-
-            // If any of the barycentric coordinates are negative, don't draw
-            if bc1 >= 0 && bc2 >= 0 && bc3 >= 0 && area != 0 {
-                // Scale the barycentric coordinates
-                let bc1 = bc1 / area;
-                let bc2 = bc2 / area;
-                let bc3 = bc3 / area;
-
-                // Compute the depth
-                let z = 1.0 / (((t0.z * bc1) + (t1.z * bc2) + (t2.z * bc3)) as f64);
-                if z > image.get_depth(x, y) {
-                    image.set_depth(x, y, z);
-                    image.set_pixel(x, y, color);
-                }
-            }
-        }
-    }
-}
-
-fn find_bounding_box(t0: Vec3<i32>, t1: Vec3<i32>, t2: Vec3<i32>) -> Vec<Vec2<i32>> {
-    // Find coordinates of the corners of the bounding box
-    let mut xs = vec![t0.x, t1.x, t2.x];
-    let mut ys = vec![t0.y, t1.y, t2.y];
-    xs.sort_by(|a, b| a.cmp(&b));
-    ys.sort_by(|a, b| a.cmp(&b));
-
-    let (min_x, max_x) = (xs[0], xs[2]);
-    let (min_y, max_y) = (ys[0], ys[2]);
-
-    vec![Vec2{x: min_x, y: min_y},
-         Vec2{x: min_x, y: max_y},
-         Vec2{x: max_x, y: max_y},
-         Vec2{x: max_x, y: min_y}]
-}
-
-fn clip_bounding_box(bbox: Vec<Vec2<i32>>, image: &Image) -> Vec<Vec2<i32>> {
-    let mut result = Vec::new();
-
-    for i in bbox  {
-        let clipped_bounds = Vec2{x: clip(i.x, 0, image.width),
-                                  y: clip(i.y, 0, image.height)};
-        result.push(clipped_bounds);
-    }
-
-    result
-}
-
-fn clip(x: i32, min: i32, max: i32) -> i32 {
-    if x < min {
-        min
-    } else if x > max {
-        max
-    } else {
-        x
-    }
-}
-
-fn barycentric(t0: Vec3<i32>, t1: Vec3<i32>, p: Vec3<i32>) -> i32 {
-    // Compute edge function
-    (t1.x - t0.x) * (p.y - t0.y) - (t1.y - t0.y) * (p.x - t0.x)
 }
