@@ -117,12 +117,12 @@ impl Model {
         }
     }
 
-    pub fn draw(self, mut image: &mut Image, light_dir: Vec3<i32>) {
+    pub fn draw(&self, mut image: &mut Image, light_dir: Vec3<i32>) {
         // Iterate over the faces in the model and draw the triangles
-        for face in self.faces {
+        for face in self.faces.iter() {
 
             // Scale the triangle to the screen size
-            let tri = face.scale_to_image(image.width, image.height);
+            let tri = &face.scale_to_image(image.width, image.height);
 
             // Calculate the surface normal
             let norm = tri.surface_normal();
@@ -135,7 +135,8 @@ impl Model {
                 let shade = Color((intensity * 255.0).to_u8().unwrap(),
                                   (intensity * 255.0).to_u8().unwrap(),
                                   (intensity * 255.0).to_u8().unwrap());
-                tri.draw(&mut image, shade);
+                let texture = &self.texture;
+                tri.draw(&mut image, shade, texture.as_ref().unwrap());
                 // bb_triangle(tri.vertices[0].screen_coords.to_i32(),
                 //             tri.vertices[1].screen_coords.to_i32(),
                 //             tri.vertices[2].screen_coords.to_i32(),

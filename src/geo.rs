@@ -130,6 +130,13 @@ impl<T> Vec3<T> where T: VecNum + Mul<T, Output=T> + Add<T, Output=T> {
             z: self.z.to_i32().unwrap(),
         }
     }
+
+    pub fn xy(self) -> Vec2<T> {
+        Vec2 {
+            x: self.x,
+            y: self.y,
+        }
+    }
 }
 
 impl<T> Sub for Vec3<T> where T: VecNum + Sub<Output=T> {
@@ -220,6 +227,17 @@ impl Vertex {
             screen_texture: None,
         }
     }
+
+    pub fn scale_to_texture(self, width: i32, height: i32) -> Vertex {
+        let new_coords = Vec2{x: ((self.texture.unwrap().x) * (width as f64)),
+                              y: (self.texture.unwrap().y) * (height as f64)};
+        Vertex {
+            coords: self.coords,
+            texture: self.texture,
+            screen_coords: self.screen_coords,
+            screen_texture: Some(new_coords),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -234,7 +252,7 @@ impl Triangle {
         }
     }
 
-    pub fn scale_to_image(self, width: i32, height: i32) -> Triangle {
+    pub fn scale_to_image(&self, width: i32, height: i32) -> Triangle {
         Triangle {
             vertices: self.vertices.iter().map(|v| v.scale_to_image(width, height)).collect()
         }
@@ -248,54 +266,53 @@ impl Triangle {
         norm.normalize()
     }
 
-    pub fn draw(&self, mut image: &mut Image, color: Color) {
+    pub fn draw(&self, mut image: &mut Image, color: Color, texture: &Image) {
         let bbox: Vec<Vec2<i32>> = self.find_bounding_box();
         let bbox = self.clip_bounding_box(bbox, &image);
-        // Line(bbox[0], bbox[1], &mut image, RED);
-        // line(bbox[1], bbox[2], &mut image, RED);
-        // line(bbox[2], bbox[3], &mut image, RED);
-        // line(bbox[3], bbox[0], &mut image, RED);
-
-        // Compute edge function for all 3 points - we'll use this to scale for zbuffer
-        let area = barycentric(&self.vertices[0].screen_coords.to_i32(),
-                               &self.vertices[1].screen_coords.to_i32(),
-                               &self.vertices[2].screen_coords.to_i32());
 
         // Iterate over the pixels in the bounding box
-        if area != 0 {
             for x in bbox[0].x..bbox[3].x {
                 for y in bbox[0].y..bbox[2].y {
-                    let p = Vec3{x: x, y: y, z: 0};
-                    let bc1 = barycentric(&self.vertices[0].screen_coords.to_i32(),
-                                          &self.vertices[1].screen_coords.to_i32(),
-                                          &p);
-                    let bc2 = barycentric(&self.vertices[1].screen_coords.to_i32(),
-                                          &self.vertices[2].screen_coords.to_i32(),
-                                          &p);
-                    let bc3 = barycentric(&self.vertices[2].screen_coords.to_i32(),
-                                          &self.vertices[0].screen_coords.to_i32(),
-                                          &p);
+                    let p = Vec2{x: x, y: y};
+                    let bc = new_barycentric(&self.vertices[0].screen_coords.xy().to_i32(),
+                                             &self.vertices[1].screen_coords.xy().to_i32(),
+                                             &self.vertices[2].screen_coords.xy().to_i32(),
+                                             &p);
 
                     // If any of the barycentric coordinates are negative, don't draw
-                    if bc1 >= 0 && bc2 >= 0 && bc3 >= 0 {
+                    if bc.x >= 0.0 && bc.y >= 0.0 && bc.z >= 0.0 {
                         // Scale the coordinates
-                        let bc1 = bc1 / area;
-                        let bc2 = bc2 / area;
-                        let bc3 = bc3 / area;
 
                         // Compute the depth
-                        let z = 1.0 / ((((self.vertices[0].screen_coords.z as i32 * bc1) as f64) +
-                                        ((self.vertices[1].screen_coords.z as i32 * bc2) as f64) +
-                                        ((self.vertices[2].screen_coords.z as i32 * bc3) as f64)));
+                        let z = self.vertices[0].coords.x * bc.x
+                            + self.vertices[1].coords.y * bc.y
+                            + self.vertices[2].coords.z * bc.z;
 
-                        if z > image.get_depth(x, y) {
+                        // Compute the texture coordinates
+                        // Scale to texture dimensions
+                        let tex_1 = self.vertices[0].scale_to_texture(texture.width, texture.height)
+                            .screen_texture.unwrap();
+                        let tex_2 = self.vertices[1].scale_to_texture(texture.width, texture.height)
+                            .screen_texture.unwrap();
+                        let tex_3 = self.vertices[2].scale_to_texture(texture.width, texture.height)
+                            .screen_texture.unwrap();
+
+                        let text_coords = Vec2 {
+                            x: tex_1.x * bc.x + tex_2.x * bc.y + tex_3.x * bc.z,
+                            y: tex_1.y * bc.x + tex_2.y * bc.y + tex_3.y * bc.z,
+                        };
+
+                        let texture_color = texture.get_pixel(text_coords.x as i32,
+                                                              text_coords.y as i32);
+
+                        if z as i32 > image.get_depth(x, y) {
                             image.set_depth(x, y, z);
-                            image.set_pixel(x, y, color);
+                            image.set_pixel(x, y, texture_color);
                         }
                     }
                 }
             }
-        }
+        // }
     }
 
     pub fn find_bounding_box(&self) -> Vec<Vec2<i32>> {
@@ -327,9 +344,28 @@ impl Triangle {
     }
 }
 
-pub fn barycentric(t0: &Vec3<i32>, t1: &Vec3<i32>, p: &Vec3<i32>) -> i32 {
+pub fn barycentric(t0: &Vec3<i32>, t1: &Vec3<i32>, p: &Vec3<i32>) -> f64 {
     // Compute edge function
+    let t0 = t0.to_f64();
+    let t1 = t1.to_f64();
+    let p = p.to_f64();
     (t1.x - t0.x) * (p.y - t0.y) - (t1.y - t0.y) * (p.x - t0.x)
+}
+
+pub fn new_barycentric(t0: &Vec2<i32>, t1: &Vec2<i32>, t2: &Vec2<i32>, p: &Vec2<i32>) -> Vec3<f64> {
+    let cross = cross_product(
+        Vec3 {
+            x: (t2.x - t0.x) as f64, y: (t1.x - t0.x) as f64, z: (t0.x - p.x) as f64
+        },
+        Vec3 {
+            x: (t2.y - t0.y) as f64, y: (t1.y - t0.y) as f64, z: (t0.y - p.y) as f64
+        });
+
+    Vec3 {
+        x: 1.0 - (cross.x + cross.y) / cross.z,
+        y: cross.y / cross.z,
+        z: cross.x / cross.z
+    }
 }
 
 fn clip(x: i32, min: i32, max: i32) -> i32 {

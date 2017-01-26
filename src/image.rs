@@ -21,7 +21,7 @@ pub struct Image {
     pub width: i32,
     pub height: i32,
     data: Vec<Color>,
-    zbuffer: Vec<f64>,
+    zbuffer: Vec<i32>,
 }
 
 // Given a reference to a T, return a reference to that slice
@@ -43,7 +43,7 @@ impl Image {
         // Initialize with black background
         let v = vec![BLACK; (width * height) as usize];
         // The z-buffer is the same size as the image and initially filled with -Inf (basically)
-        let z = vec![f64::MIN; (width * height) as usize];
+        let z = vec![i32::min_value(); (width * height) as usize];
 
         Image {
             width: width,
@@ -61,6 +61,10 @@ impl Image {
         }
     }
 
+    pub fn get_pixel(self: &Image, x: i32, y: i32) -> Color {
+        self.data[((y * self.width) + x) as usize]
+    }
+
     pub fn set_data_buffer(self: &mut Image, data: Vec<Color>) {
         self.data = data;
     }
@@ -68,11 +72,11 @@ impl Image {
     // TODO: Should the zbuffer be floats?
     pub fn set_depth(self: &mut Image, x: i32, y: i32, d: f64) {
         if !(x < 0 || y < 0 || x >= self.width || y >= self.width) {
-            self.zbuffer[((y * self.width) + x) as usize] = d;
+            self.zbuffer[((y * self.width) + x) as usize] = d as i32;
         }
     }
 
-    pub fn get_depth(self: &Image, x: i32, y: i32) -> f64 {
+    pub fn get_depth(self: &Image, x: i32, y: i32) -> i32 {
         self.zbuffer[((y * self.width) + x) as usize]
     }
 
@@ -111,10 +115,6 @@ impl Image {
             try!(f.write_all(slice_to_u8_slice(&self.data[..])));
         }
         Ok(())
-    }
-
-    fn flip_vertically(&mut self) {
-        self.data.reverse();
     }
 }
 
